@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>폴리곤 러너</title>
+<style>
+:root{--bg:#101827;--panel:#1b2940;--line:#31445f;--text:#edf4ff;--muted:#9fb0c8;--gold:#ffd166;--cyan:#63d7e8}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#233754,#101827 60%);color:var(--text);font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif}
+.wrap{max-width:1100px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:clamp(24px,4vw,38px);margin:4px 0}.sub{color:var(--muted);font-size:14px}
+.money{background:#3a321e;border:1px solid #75602c;border-radius:14px;padding:10px 16px;color:var(--gold);font-weight:800;font-size:20px}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(280px,1fr);gap:16px;margin-top:16px}
+.panel{background:linear-gradient(145deg,#1d2c43,#172337);border:1px solid var(--line);border-radius:18px;padding:16px;box-shadow:0 12px 30px #0003}
+canvas{width:100%;height:auto;display:block;border-radius:14px;background:linear-gradient(160deg,#12243a,#0c1727);border:1px solid #30435b}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.stat{background:#101b2b;border-radius:12px;padding:10px;text-align:center}.stat b{display:block;font-size:19px}.stat span{font-size:12px;color:var(--muted)}
+.tabs{display:flex;gap:7px;margin-bottom:12px}.tab{flex:1;border:1px solid var(--line);background:#142238;color:var(--muted);padding:10px;border-radius:10px;cursor:pointer}.tab.active{background:#31516d;color:white;border-color:#5a91b8}
+.shop{display:grid;gap:9px}.item{display:flex;align-items:center;gap:10px;background:#101c2c;border:1px solid #2b3c53;border-radius:12px;padding:10px}.emoji{font-size:28px;width:38px;text-align:center}.details{flex:1;min-width:0}.details b{display:block}.details small{color:var(--muted)}button{border:0;border-radius:9px;background:#3f9eaf;color:#071722;font-weight:800;padding:9px 12px;cursor:pointer}button:disabled{background:#43536a;color:#9aa8bb;cursor:not-allowed}.item button{min-width:78px}.notice{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.5}.sectionTitle{margin:4px 0 12px;font-size:18px}.leader li{padding:5px 0;color:#dbe8f7}.leader{padding-left:22px}.footer{margin:16px 2px;color:var(--muted);font-size:12px}
+@media(max-width:760px){.layout{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}}
+</style></head>
+<body><div class="wrap">
+<div class="top"><div><h1>🐢 폴리곤 러너</h1><div class="sub">다각형을 한 바퀴 돌 때마다 코인을 모으고 더 빠른 캐릭터와 새로운 코스를 구매하세요!</div></div><div class="money">🪙 <span id="money">0</span></div></div>
+<div class="layout">
+<section class="panel">
+<canvas id="game" width="700" height="500"></canvas>
+<div class="stats"><div class="stat"><b id="laps">0</b><span>완주 횟수</span></div><div class="stat"><b id="speed">1.0x</b><span>캐릭터 속도</span></div><div class="stat"><b id="reward">×1.0</b><span>돈 배율</span></div></div>
+<div class="notice">캐릭터는 자동으로 다각형의 변을 따라 이동합니다. 한 바퀴를 완주하면 코인을 획득합니다. 게임 진행 상황은 이 브라우저에 자동 저장됩니다.</div>
+</section>
+<aside class="panel">
+<div class="tabs"><button class="tab active" data-tab="characters">캐릭터</button><button class="tab" data-tab="polygons">다각형</button><button class="tab" data-tab="upgrades">배율 강화</button></div>
+<div id="shop" class="shop"></div>
+<h3 class="sectionTitle" style="margin-top:18px">🏆 서버 랭킹</h3><ol class="leader" id="leader"><li>랭킹 불러오는 중...</li></ol>
+<div style="display:flex;gap:8px;margin-top:10px"><input id="nickname" maxlength="12" placeholder="닉네임" style="min-width:0;flex:1;background:#101b2b;border:1px solid #31445f;border-radius:9px;color:white;padding:9px"><button id="submitScore">기록 등록</button></div>
+<div class="notice" id="serverMsg">서버 연결 상태 확인 중...</div>
+</aside></div><div class="footer">Polygon Runner · GitHub + Render 배포용 프로젝트</div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const characters=[
+{id:'turtle',name:'기본 거북이',emoji:'🐢',speed:1,cost:0,desc:'느긋하지만 믿음직한 기본 캐릭터'},
+{id:'rabbit',name:'토끼',emoji:'🐇',speed:1.35,cost:80,desc:'빠르게 달리는 캐릭터'},
+{id:'fox',name:'여우',emoji:'🦊',speed:1.7,cost:250,desc:'더 빠른 속도로 완주!'},
+{id:'cheetah',name:'치타',emoji:'🐆',speed:2.25,cost:700,desc:'매우 빠른 스피드'},
+{id:'dragon',name:'용',emoji:'🐉',speed:3,cost:1800,desc:'최고 속도의 전설 캐릭터'}
+];
+const polygons=[
+{id:'triangle',name:'삼각형',sides:3,cost:0,reward:5,desc:'기본 코스 · 보상 5'},
+{id:'square',name:'사각형',sides:4,cost:60,reward:8,desc:'보상 8'},
+{id:'pentagon',name:'오각형',sides:5,cost:180,reward:13,desc:'보상 13'},
+{id:'hexagon',name:'육각형',sides:6,cost:450,reward:20,desc:'보상 20'},
+{id:'octagon',name:'팔각형',sides:8,cost:1000,reward:32,desc:'보상 32'}
+];
+const defaults={money:0,laps:0,multiplier:1,ownedChars:['turtle'],char:'turtle',ownedPolys:['triangle'],poly:'triangle',nickname:''};
+let save={...defaults,...JSON.parse(localStorage.getItem('polygonRunnerSave')||'{}')};
+function persist(){localStorage.setItem('polygonRunnerSave',JSON.stringify(save));updateHud()}
+let tab='characters',progress=0,last=performance.now();
+const canvas=$('game'),ctx=canvas.getContext('2d');
+function currentChar(){return characters.find(x=>x.id===save.char)||characters[0]}
+function currentPoly(){return polygons.find(x=>x.id===save.poly)||polygons[0]}
+function updateHud(){$('money').textContent=Math.floor(save.money).toLocaleString('ko-KR');$('laps').textContent=save.laps;$('speed').textContent=currentChar().speed.toFixed(2)+'x';$('reward').textContent='×'+save.multiplier.toFixed(1)}
+function buy(kind,id){let item=(kind==='characters'?characters:polygons).find(x=>x.id===id);let owned=kind==='characters'?save.ownedChars:save.ownedPolys;let selected=kind==='characters'?save.char:save.poly;if(owned.includes(id)){if(kind==='characters')save.char=id;else save.poly=id;}else if(save.money>=item.cost){save.money-=item.cost;owned.push(id);if(kind==='characters')save.char=id;else save.poly=id;}else return;persist();renderShop()}
+function renderShop(){
+let list=tab==='characters'?characters:tab==='polygons'?polygons:null;
+if(tab==='upgrades'){let cost=Math.floor(100*Math.pow(save.multiplier,1.8));$('shop').innerHTML=`<div class="item"><div class="emoji">💰</div><div class="details"><b>돈 배율 강화</b><small>현재 ×${save.multiplier.toFixed(1)} → ×${(save.multiplier+.5).toFixed(1)} · 비용 ${cost} 코인</small></div><button id="upgrade" ${save.money<cost?'disabled':''}>강화</button></div><div class="notice">배율이 높을수록 한 바퀴를 돌 때 받는 코인이 늘어납니다.</div>`;$('upgrade').onclick=()=>{if(save.money>=cost){save.money-=cost;save.multiplier=+(save.multiplier+.5).toFixed(1);persist();renderShop()}};return}
+$('shop').innerHTML=list.map(x=>{let owned=(tab==='characters'?save.ownedChars:save.ownedPolys).includes(x.id);let selected=(tab==='characters'?save.char:save.poly)===x.id;return `<div class="item"><div class="emoji">${tab==='characters'?x.emoji:'⬡'}</div><div class="details"><b>${x.name} ${selected?'✓':''}</b><small>${tab==='characters'?'속도 '+x.speed.toFixed(2)+'x':x.desc}</small></div><button data-id="${x.id}" ${!owned&&save.money<x.cost?'disabled':''}>${owned?'선택':x.cost+'🪙'}</button></div>`}).join('');
+$('shop').querySelectorAll('button').forEach(b=>b.onclick=()=>buy(tab,b.dataset.id));
+}
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));renderShop()});
+function pointAt(t){let p=currentPoly(),n=p.sides,cx=350,cy=250,r=155,verts=[];for(let i=0;i<n;i++){let a=-Math.PI/2+i*2*Math.PI/n;verts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r})}let scaled=t*n,idx=Math.floor(scaled)%n,f=scaled-Math.floor(scaled),a=verts[idx],b=verts[(idx+1)%n];return{x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f}}
+function draw(){ctx.clearRect(0,0,700,500);let p=currentPoly(),n=p.sides,cx=350,cy=250,r=155;ctx.save();ctx.translate(cx,cy);ctx.rotate(-Math.PI/2);ctx.beginPath();for(let i=0;i<n;i++){let a=i*2*Math.PI/n,x=Math.cos(a)*r,y=Math.sin(a)*r;i?ctx.lineTo(x,y):ctx.moveTo(x,y)}ctx.closePath();ctx.strokeStyle='#63d7e8';ctx.lineWidth=5;ctx.shadowColor='#63d7e8';ctx.shadowBlur=15;ctx.stroke();ctx.restore();
+for(let i=0;i<n;i++){let a=-Math.PI/2+i*2*Math.PI/n;ctx.fillStyle='#dcecff';ctx.beginPath();ctx.arc(cx+Math.cos(a)*r,cy+Math.sin(a)*r,5,0,Math.PI*2);ctx.fill()}
+let pos=pointAt(progress);ctx.font='34px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(currentChar().emoji,pos.x,pos.y-2);
+ctx.fillStyle='#9fb0c8';ctx.font='15px system-ui';ctx.fillText(p.name+' 코스',350,455);ctx.restore();requestAnimationFrame(draw)}
+function tick(now){let dt=Math.min((now-last)/1000,.05);last=now;progress+=dt*.075*currentChar().speed;if(progress>=1){progress-=1;let earned=currentPoly().reward*save.multiplier;save.money+=earned;save.laps++;persist();renderShop()}requestAnimationFrame(tick)}
+$('nickname').value=save.nickname||'';
+$('nickname').onchange=()=>{save.nickname=$('nickname').value.trim().slice(0,12);persist()};
+async function refreshBoard(){try{let r=await fetch('/api/leaderboard');if(!r.ok)throw Error();let data=await r.json();$('leader').innerHTML=data.length?data.map(x=>`<li>${escapeHtml(x.name)} — ${Number(x.laps).toLocaleString()}바퀴</li>`).join(''):'<li>아직 등록된 기록이 없습니다.</li>';$('serverMsg').textContent='서버 연결됨';}catch(e){$('leader').innerHTML='<li>서버에 연결할 수 없습니다.</li>';$('serverMsg').textContent='로컬 실행 중이거나 서버 연결을 확인해 주세요.'}}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('submitScore').onclick=async()=>{let name=$('nickname').value.trim()||'익명';save.nickname=name;persist();try{let r=await fetch('/api/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,laps:save.laps})});if(!r.ok)throw Error();$('serverMsg').textContent='기록이 서버 랭킹에 등록되었습니다!';refreshBoard()}catch(e){$('serverMsg').textContent='서버에 연결할 수 없어 기록을 등록하지 못했습니다.'}};
+updateHud();renderShop();refreshBoard();requestAnimationFrame(draw);requestAnimationFrame(tick);setInterval(refreshBoard,30000);
+</script></body></html>
